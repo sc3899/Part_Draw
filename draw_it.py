@@ -30,18 +30,11 @@ class draw_it:
         self.canvas.setLineWidth(.5)
         self.canvas.setDash([.1, 0, .1])
 
-        anchor_point = obj["connection"]
+        anchor_point = obj["connection"][anchor_point_name]
+        next_x = start_x + anchor_point["offset_point"]["x"]
+        next_y = start_y + anchor_point["offset_point"]["y"]
 
-    def draw_shape_at(self, start_x, start_y, obj):
-        # Draw the polygon
-        path = self.canvas.beginPath()
-        self.canvas.setLineWidth(.5)
-        self.canvas.setDash([.1, 0, .1])
-        
-        next_x = start_x + obj["connection"][0]["offset_point"]["x"]
-        next_y = start_y + obj["connection"][0]["offset_point"]["y"]
-
-        for connection_point in obj["connection"]:
+        for key, connection_point in obj["connection"].items():
             if "absolute_point" in connection_point:
                 print("Absolute point exists as {}:({},{})".format(
                     connection_point["name"],
@@ -62,8 +55,48 @@ class draw_it:
             path.lineTo(next_x, next_y)
             #print("({0},{1})".format(next_x, next_y))
 
-        next_x = start_x + obj["connection"][0]["offset_point"]["x"]
-        next_y = start_y + obj["connection"][0]["offset_point"]["y"]
+        next_x = start_x + anchor_point["offset_point"]["x"]
+        next_y = start_y + anchor_point["offset_point"]["y"]
+
+        path.lineTo(next_x, next_y)
+        self.canvas.drawPath(path, fill=0)  # fill=1 means fill the path
+ 
+
+
+    def draw_shape_at(self, start_x, start_y, obj):
+        # Draw the polygon
+        path = self.canvas.beginPath()
+        self.canvas.setLineWidth(.5)
+        self.canvas.setDash([.1, 0, .1])
+
+        first_key = list(obj["connection"].keys())[0]
+        next_x = start_x + obj["connection"][first_key]["offset_point"]["x"]
+        next_y = start_y + obj["connection"][first_key]["offset_point"]["y"]
+
+        for key, connection_point in obj["connection"].items():
+            if "absolute_point" in connection_point:
+                print("Absolute point exists as {}:({},{})".format(
+                    connection_point["name"],
+                    connection_point["absolute_point"]
+                ))
+            abs_x = next_x - connection_point["offset_point"]["x"]
+            abs_y = next_y - connection_point["offset_point"]["y"]
+            connection_point["absolute_point"] = (abs_x, abs_y)
+            self.canvas.circle(abs_x, abs_y, 5, fill = 0)
+            print(abs_x, abs_y)
+        
+        path = self.canvas.beginPath()
+        path.moveTo(next_x, next_y)
+
+        for x, y in obj["points"][1:]:
+            next_x = next_x + x
+            next_y = next_y + y
+            path.lineTo(next_x, next_y)
+            #print("({0},{1})".format(next_x, next_y))
+
+        first_key = list(obj["connection"].keys())[0]
+        next_x = start_x + obj["connection"][first_key]["offset_point"]["x"]
+        next_y = start_y + obj["connection"][first_key]["offset_point"]["y"]
 
         path.lineTo(next_x, next_y)
         self.canvas.drawPath(path, fill=0)  # fill=1 means fill the path
@@ -73,23 +106,51 @@ class draw_it:
         self.canvas.save()
         print(f"PDF file '{self.output_name}' created successfully.")
 
+def set_position(x, y, origin_name, obj_list):
 
-
+    for obj in obj_list:
+        if origin_name in obj["connection"]:
+            anchor_point = obj["connection"][origin_name]
+            seed_x = x + anchor_point["offset_point"]["x"]
+            seed_y = y + anchor_point["offset_point"]["y"]
+            for key, connection_point in obj["connection"].items():
+                if "absolute_point" in connection_point:
+                    print("Absolute point exists as {0}:({1})".format(
+                        key,
+                        connection_point["absolute_point"]
+                    ))
+                abs_x = seed_x - connection_point["offset_point"]["x"]
+                abs_y = seed_y - connection_point["offset_point"]["y"]
+                connection_point["absolute_point"] = (abs_x, abs_y)
+                #self.canvas.circle(abs_x, abs_y, 5, fill = 0)
+                print("{0}:({1}, {2})".format(key, abs_x, abs_y))
+    
 if __name__ == "__main__":
     # Define the vertices of the polygon
     width, height = letter
 
-    obj_list = [{"connection":[
-                    {"name":"A1", 
-                        "offset_point" : {"x": -10, "y" : -50 }},
-                    {"name":"B1", 
-                        "offset_point" : {"x": -25, "y" : -190 }},    
-                        ],
-                "points":[(0, 0), (0, 200), (50, 0), (0, -100),]},
+    obj_list = [{"connection":
+                    {
+                        "A1":
+                            {"offset_point" : 
+                                {"x": -10, "y" : -50 }
+                            },
+                        "B1":
+                            {"offset_point" : 
+                                {"x": -25, "y" : -190 }
+                            },
+                    },
+                "points":
+                    [(0, 0), (0, 200), (50, 0), (0, -100),]
+                },
 
-                {"connection":[{"name":"A1", 
-                        "offset_point" : {"x": -10, "y" : -10 }
-                        }],
+                {"connection":
+                    {
+                        "A1":
+                            {"offset_point" : 
+                                {"x": -10, "y" : -10 }
+                            }
+                    },
                 "points":[(0, 0), (100, 0), (0, 20), (-100, 0),]}
            ]
 
@@ -99,13 +160,15 @@ if __name__ == "__main__":
     sy = 200
 
     for obj in obj_list:
-        d.draw_shape_at( sx, sy, obj)
-        for conn in obj["connection"]:
+        d.draw_shapes_at( sx, sy, "A1", obj)
+        for key, conn in obj["connection"].items():
             x, y = conn["absolute_point"]
             print("Absolute point exists as {}:({},{})".format(
-                    conn["name"], x, y)
+                    key, x, y)
                 )
-            sx += 50
-            sy += 50
+            #sx += 50
+            #sy += 50
     d.draw_end()
+
+    set_position(sx, sy, "A1", obj_list)
     
